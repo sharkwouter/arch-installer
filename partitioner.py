@@ -47,27 +47,24 @@ class Partitioner:
             print("{}\t\t{}\t\t{}".format(path, size, type))
         print("")
 
-    def repartition(self, device: parted.Device) -> bool:
+    def repartition(self, device: parted.Device) -> parted.Partition:
         disk = parted.newDisk(device)
         # Delete the current partitions and create a new one
         if disk.deleteAllPartitions() and disk.commit():
             new_partition = self.create_partition(device, 0, device.getLength()-1)
-            if not new_partition:
-                return False
 
             # Format the newly created partition and whether or not the return code was 0
-            result = subprocess.run(["/usr/sbin/mkfs", "-F", "-t", "ext4", "{}".format(new_partition.path)])
-            return result.returncode == 0
-        return False
+            self.format_partition(new_partition, "ext4")
+            return new_partition
+        raise Exception("Couldn't delete old partition table")
 
-    def get_partitions_device(self, device: parted.Device):
-        disk = parted.newDisk(device)
-        return disk.getPrimaryPartitions()
+    def format_partition(self, partition: parted.Partition, filesystem: string) -> None:
+        # Format the newly created partition and whether or not the return code was 0
+        result = subprocess.run(["/usr/sbin/mkfs", "-F", "-t", filesystem, partition.path])
+        if result.returncode != 0:
+            raise Exception("The partition {} could not be formatted".format(partition.path))
 
-    def format_partition(self, partition: parted.Partition):
-        disk = partition.disk()
-
-    def create_partition(self, device: parted.Device, start: int, length: int=None, end: int=None, partition_type: int=parted.PARTITION_NORMAL, filesystem_type: string="ext4",) -> parted.Partition:
+    def create_partition(self, device: parted.Device, start: int, length: int=None, end: int=None, partition_type: int=parted.PARTITION_NORMAL, filesystem_type: string="ext4") -> parted.Partition:
         disk = parted.newDisk(device)
         geometry = parted.Geometry(device=device, start=start, end=end, length=length)
         filesystem = parted.FileSystem(type=filesystem_type, geometry=geometry)
@@ -76,12 +73,10 @@ class Partitioner:
         partition = parted.Partition(disk, partition_type, geometry=geometry, fs=filesystem)
 
         # Create the partition
-        if not disk.addPartition(partition, constraint):
-            return None
-        if not disk.commit():
-            return None
+        if disk.addPartition(partition, constraint) and disk.commit():
+            return partition
 
-        return partition
+        raise Exception("Partition {} could not be created".format(partition.path))
 
     def bytes_to_readable(self, size: int) -> string:
         if size >= (1024**4):

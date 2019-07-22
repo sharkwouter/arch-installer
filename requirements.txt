@@ -1,2 +1,3 @@
+wheel
 pyparted
-python3-requests
+requests

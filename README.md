@@ -6,3 +6,13 @@ The following software is required to be installed:
 
 - python
 - libparted
+
+## Features
+
+### Currently implemented
+
+Currently the following features have been included:
+
+- Listing disks
+- Removing partitions
+- Creating a new partition
